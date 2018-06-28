@@ -1,0 +1,28 @@
+#Table created to load preprocessed tweets
+create table tweetBank (tweet_id INT, tweet string) row format delimited fields terminated by "\t";
+
+#Load the preprocessed data in table
+load data inpath 'Projects/SentimentAnalysis/tweets.txt' overwrite into table tweetbank;
+
+#Split tweets into a new table having array of words for each tweet in a row
+create table tweet_words as select tweet_id as id,split(tweet,' ') as words from tweetbank;
+
+#Create a table to store each word in seperate row with its respevtive tweet_id
+create table words as select id as id,word from tweet_words LATERAL VIEW explode(words) w as word;
+
+#Create table to load AFINN data
+create table dictionary(word string,rating int) row format delimited fields terminated by '\t';  
+
+#Load AFINN data
+load data local inpath '../../dataflairProject/SentimentAnalysisData/AFINN-111.txt' overwrite into table dictionary;
+
+#Left outer Join
+create table word_join as select words.id,words.word,dictionary.rating from words LEFT OUTER JOIN dictionary ON(words.word =dictionary.word);
+
+#Descending order
+create table word_bank as select id,AVG(rating) as rating from word_join GROUP BY word_join.id order by rating DESC;      
+
+#Tweets with there sentiment value (if rating is +ve then positive tweet and if rating is -ve then negative tweet. Neutral if rating is 0)
+create table tweet_sentiment as select word_bank.rating,word_bank.id,tweetbank.tweet from word_bank left outer join tweetbank on (word_bank.id=tweetbank.tweet_id);
+
+
